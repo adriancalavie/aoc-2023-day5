@@ -1,9 +1,6 @@
-use std::{
-    fs,
-    io::ErrorKind,
-    num::{IntErrorKind, ParseIntError},
-};
+use std::{collections::HashMap, fs, num::ParseIntError};
 
+#[derive(Clone, Debug)]
 struct Range {
     src_offset_start: i64,
     length: i64,
@@ -31,6 +28,7 @@ impl Range {
     }
 }
 
+#[derive(Clone, Debug)]
 struct Map {
     from: String,
     to: String,
@@ -39,8 +37,15 @@ struct Map {
 
 impl Map {
     fn try_from(lines: Vec<&String>) -> Result<Self, &'static str> {
-        let names_line = lines.first().ok_or("Too few lines provided")?;
-        let names: Vec<&str> = names_line.trim_end_matches(" map").split("-to-").collect();
+        let names_line = lines
+            .first()
+            .ok_or("Too few lines provided")?
+            .strip_suffix(" map:")
+            .expect("Failed to strip suffix");
+
+        println!("{}", names_line);
+
+        let names: Vec<&str> = names_line.trim().split("-to-").collect();
 
         if names.len() != 2 {
             return Err("Invalid mapping names length");
@@ -74,6 +79,7 @@ impl Map {
     }
 
     fn convert(&self, src_value: i64) -> i64 {
+        // println!("Converting {} from {} to {}", src_value, self.from, self.to);
         let mut dest_value = src_value;
         for range in &self.ranges {
             if range.is_in_src_range(src_value) {
@@ -108,12 +114,12 @@ fn read_lines(path: &str) -> Vec<String> {
 
 fn print_map(map: &Map) {
     println!("{}-to-{}", map.from, map.to);
-    for range in &map.ranges {
-        println!(
-            "{} {} {}",
-            range.src_offset_start, range.length, range.dest_offset
-        );
-    }
+    // for range in &map.ranges {
+    //     println!(
+    //         "{} {} {}",
+    //         range.src_offset_start, range.length, range.dest_offset
+    //     );
+    // }
     println!()
 }
 
@@ -163,47 +169,38 @@ fn main() {
     let path = "res/data.txt";
     // let path = "res/data_light.txt";
 
-    match read_data(path) {
-        Ok(Data { seeds, maps }) => {
-            println!("seeds: {}", seeds.len());
-            for seed in seeds {
-                println!("{}", seed);
-            }
+    if let Ok(Data { seeds, maps }) = read_data(path) {
+        let from_map: HashMap<String, &Map> =
+            maps.iter().map(|map| (map.from.clone(), map)).collect();
 
-            println!("\nmaps: {}", maps.len());
-            for map in maps {
-                print_map(&map)
+        let start = "seed";
+        let end = "location";
+
+        let find_location = |seed| {
+            println!("Finding location for seed: {}", seed);
+            let mut current_map = from_map.get(start).unwrap();
+            let mut current_value = seed;
+
+            while !current_map.to.eq(end) {
+                current_value = current_map.convert(current_value);
+                current_map = from_map.get(&current_map.to).unwrap();
+            }
+            current_value = current_map.convert(current_value);
+            println!("\tLocation found: {}", current_value);
+
+            current_value
+        };
+
+        let mut min_location = i64::MAX;
+        for seed in seeds {
+            let location = find_location(seed);
+            if location < min_location {
+                min_location = location;
             }
         }
-        Err(err) => eprintln!("Error: {}", err),
+
+        println!("Minimum location: {}", min_location);
+    } else {
+        eprintln!("Error reading data");
     }
-
-    // let r1 = Range::new(50, 98, 2);
-    // let r2 = Range::new(52, 50, 48);
-
-    // println!(
-    //     "r1: {} {} {}",
-    //     r1.src_offset_start, r1.length, r1.dest_offset
-    // );
-    // println!(
-    //     "r2: {} {} {}",
-    //     r2.src_offset_start, r2.length, r2.dest_offset
-    // );
-
-    // println!();
-
-    // println!(
-    //     "r1: {} {} {}",
-    //     r1.is_in_src_range(98),
-    //     r1.is_in_src_range(99),
-    //     r1.is_in_src_range(100)
-    // );
-
-    // println!(
-    //     "r2: {} {} {} {}",
-    //     r2.is_in_src_range(50),
-    //     r2.is_in_src_range(51),
-    //     r2.is_in_src_range(98),
-    //     r2.is_in_src_range(99),
-    // )
 }
