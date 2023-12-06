@@ -1,5 +1,7 @@
 use std::{collections::HashMap, fs, num::ParseIntError};
 
+use indicatif::{ProgressBar, ProgressStyle};
+
 #[derive(Clone, Debug)]
 struct Range {
     src_offset_start: i64,
@@ -151,6 +153,18 @@ fn read_seeds(lines: &[String]) -> Result<Vec<i64>, Box<dyn std::error::Error>> 
         .map_err(Into::into)
 }
 
+fn expand_seeds(input: &[i64]) -> Vec<i64> {
+    println!("Expanding seeds...");
+    let mut seeds = Vec::new();
+    input.chunks(2).for_each(|chunk| {
+        for seed in chunk[0]..chunk[0] + chunk[1] {
+            seeds.push(seed);
+        }
+    });
+    println!("Finished");
+    seeds
+}
+
 struct Data {
     maps: Vec<Map>,
     seeds: Vec<i64>,
@@ -160,7 +174,7 @@ fn read_data(path: &str) -> Result<Data, Box<dyn std::error::Error>> {
     let lines = &read_lines(path);
 
     let maps = read_maps(lines)?;
-    let seeds = read_seeds(lines)?;
+    let seeds = expand_seeds(read_seeds(lines)?.as_slice());
 
     Ok(Data { maps, seeds })
 }
@@ -177,7 +191,7 @@ fn main() {
         let end = "location";
 
         let find_location = |seed| {
-            println!("Finding location for seed: {}", seed);
+            // println!("Finding location for seed: {}", seed);
             let mut current_map = from_map.get(start).unwrap();
             let mut current_value = seed;
 
@@ -186,18 +200,31 @@ fn main() {
                 current_map = from_map.get(&current_map.to).unwrap();
             }
             current_value = current_map.convert(current_value);
-            println!("\tLocation found: {}", current_value);
+            // println!("\tLocation found: {}", current_value);
 
             current_value
         };
 
         let mut min_location = i64::MAX;
+
+        let total_iterations = seeds.len();
+        let progress_bar = ProgressBar::new(total_iterations as u64);
+        progress_bar.set_style(
+            ProgressStyle::default_bar()
+                .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos}/{len} {msg}")
+                .unwrap(),
+        );
+
         for seed in seeds {
             let location = find_location(seed);
             if location < min_location {
                 min_location = location;
             }
+            progress_bar.inc(1);
         }
+
+        // Finish and clear the progress bar
+        progress_bar.finish_and_clear();
 
         println!("Minimum location: {}", min_location);
     } else {
